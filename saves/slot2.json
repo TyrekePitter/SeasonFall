@@ -1,0 +1,40 @@
+{
+    "character": {
+        "name": "mwi",
+        "appearance": {
+            "body_type": "",
+            "face": "",
+            "hair": "",
+            "markings": "",
+            "scars": ""
+        },
+        "race": "Springtouched",
+        "origin_region": "Sol'Kavash Expanse",
+        "religion_origin": "",
+        "affinity": {
+            "winter": 0,
+            "spring": 10,
+            "summer": 3,
+            "fall": 0
+        },
+        "derived_stats": {
+            "cold_resistance": 10,
+            "heat_resistance": 13
+        },
+        "stats": {
+            "health": 100,
+            "stamina": 100,
+            "mana": 50,
+            "level": 1
+        },
+        "inventory": [],
+        "quests_completed": [],
+        "flags": {
+            "met_nature_god": false,
+            "first_god_defeated": false,
+            "overlord_path_unlocked": false
+        },
+        "patron": "Sol'kavash the Burning Bloom",
+        "save_slot": "slot2"
+    }
+}

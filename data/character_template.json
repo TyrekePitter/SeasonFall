@@ -1,0 +1,40 @@
+{
+    "character": {
+        "name": "unnamed",
+        "appearance": {
+            "body_type": "",
+            "face": "",
+            "hair": "",
+            "markings": "",
+            "scars": ""
+        }, 
+        "race": "",
+        "origin_region": "",
+        "religion_origin": "",
+        "affinity": {
+            "winter": 0,
+            "spring": 0,
+            "summer": 0,
+            "fall": 0
+        },
+        "derived_stats": {
+            "cold_resistance": 0,
+            "heat_resistance": 0
+        },
+        "stats": {
+            "health": 100,
+            "stamina": 100,
+            "mana": 50,
+            "level": 1,
+            "xp": 0  
+        },
+        "inventory": [],
+        "quests_completed": [],
+        "flags": {
+            "met_nature_god": false,
+            "first_god_defeated": false,
+            "overlord_path_unlocked": false
+            
+            }
+        }
+}

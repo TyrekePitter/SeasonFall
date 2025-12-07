@@ -1,0 +1,40 @@
+{
+    "character": {
+        "name": "ty",
+        "appearance": {
+            "body_type": "",
+            "face": "",
+            "hair": "",
+            "markings": "",
+            "scars": ""
+        },
+        "race": "Veilmarked",
+        "origin_region": "Seraha's Bloomfields",
+        "religion_origin": "",
+        "affinity": {
+            "winter": 0,
+            "spring": 3,
+            "summer": 0,
+            "fall": 10
+        },
+        "derived_stats": {
+            "cold_resistance": 10,
+            "heat_resistance": 10
+        },
+        "stats": {
+            "health": 100,
+            "stamina": 100,
+            "mana": 50,
+            "level": 1
+        },
+        "inventory": [],
+        "quests_completed": [],
+        "flags": {
+            "met_nature_god": false,
+            "first_god_defeated": false,
+            "overlord_path_unlocked": false
+        },
+        "patron": "Serapha Bloomwhisper",
+        "save_slot": "slot1"
+    }
+}
