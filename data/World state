@@ -1,0 +1,143 @@
+{
+  "schema_version": 1,
+  "_note": "Seasonfall reactive world-state. One region scoped (Frostaris). Settlement names, ratings and degraded states are [PROPOSED] placeholders. Structure follows CF 001 (resolution enum), CF 003 (gods_resolved, eclipse_armed), CF 004 (stillness as adjacency graph, settlement vintage, anchor quality).",
+
+  "global": {
+    "gods_resolved": 0,
+    "eclipse_armed": false,
+    "eclipse_fired": false
+  },
+
+  "rating_scale": {
+    "_note": "GB 13.3 defines no ranges anywhere in the corpus. 0-100 int is [PROPOSED] and needs a ruling before authoring spreads.",
+    "min": 0,
+    "max": 100
+  },
+
+  "resolution_effects": {
+    "_note": "CF 003 rules the killed branch only. The other three are open threads and are deliberately unimplemented. Do not fill these in without a Panel.",
+    "killed": {
+      "stillness_spread": true,
+      "spread_step_on_resolve": 1
+    },
+    "redeemed": {
+      "stillness_spread": false,
+      "counter_push": null,
+      "awaiting_ruling": "Is redemption's counter-push symmetrical with stillness-spread, or weaker? (CF 003 Part V, carried in CF 004.)"
+    },
+    "absorbed": {
+      "awaiting_ruling": "Unspecified in corpus. CF 003 rules map consequence for killed only."
+    },
+    "manipulated": {
+      "awaiting_ruling": "Unspecified in corpus. CF 003 rules map consequence for killed only."
+    }
+  },
+
+  "regions": {
+    "frostaris": {
+      "display_name": "Frostaris",
+      "season": "winter",
+      "anchor_quality": "heartland",
+      "_anchor_note": "CF 004 rules two heartland, two marginal. Which two is blocked on the underlayer. Placeholder.",
+
+      "god": {
+        "id": "astrael",
+        "resolution": "unresolved"
+      },
+
+      "species_kills": {
+        "ice_wolf": 0,
+        "crystal_owlbear": 0,
+        "frost_wraith": 0,
+        "glacial_beetle": 0
+      },
+
+      "stillness": {
+        "origin_node": "astrael_anchor",
+        "step": 0,
+        "stilled_nodes": []
+      },
+
+      "adjacency": [
+        { "from": "astrael_anchor", "to": "stillhaven", "path": "open plain",          "resistance": 1 },
+        { "from": "stillhaven",     "to": "stonecross", "path": "frozen river course", "resistance": 1 },
+        { "from": "stonecross",     "to": "vaerholt",   "path": "river to sea",        "resistance": 1 },
+        { "from": "stonecross",     "to": "uphearth",   "path": "escarpment climb",    "resistance": 3 },
+        { "from": "vaerholt",       "to": "greyfold",   "path": "coast road",          "resistance": 2 }
+      ],
+
+      "settlements": {
+        "vaerholt": {
+          "display_name": "Vaerholt",
+          "vintage": "pre_shattering",
+          "type": "town",
+          "stability": 70,
+          "prosperity": 55,
+          "stilled": false,
+          "siting_note": "Walled deepwater port. The sea has been ice for nine centuries. The harbour cranes still stand.",
+          "degraded_state": {
+            "stability": 25,
+            "prosperity": 10,
+            "text": "The cranes stop mid-swing. Nobody remembers ordering the work halted, and nobody restarts it."
+          }
+        },
+        "stonecross": {
+          "display_name": "Stonecross",
+          "vintage": "pre_shattering",
+          "type": "village",
+          "stability": 60,
+          "prosperity": 40,
+          "stilled": false,
+          "siting_note": "Built where the road met the ford. The ford is glass. The road still runs.",
+          "degraded_state": {
+            "stability": 20,
+            "prosperity": 5,
+            "text": "The market keeps its hours. No one has brought anything to sell for two seasons."
+          }
+        },
+        "uphearth": {
+          "display_name": "Uphearth",
+          "vintage": "refuge",
+          "type": "village",
+          "stability": 45,
+          "prosperity": 20,
+          "stilled": false,
+          "siting_note": "Founded by the fled. Sited for distance, not soil. Terraced gravel, three months of growing weather.",
+          "degraded_state": {
+            "stability": 15,
+            "prosperity": 5,
+            "text": "They planted anyway. The seed sits in the ground exactly as it was set down."
+          }
+        },
+        "greyfold": {
+          "display_name": "Greyfold",
+          "vintage": "refuge",
+          "type": "outpost",
+          "stability": 50,
+          "prosperity": 25,
+          "stilled": false,
+          "siting_note": "Border post at the lucid edge. Mixed population. Two grievances sharing one wall.",
+          "degraded_state": {
+            "stability": 20,
+            "prosperity": 10,
+            "text": "The argument that has run here for four generations stops mid-sentence and is not resumed."
+          }
+        },
+        "stillhaven": {
+          "display_name": "Stillhaven",
+          "vintage": "devotion",
+          "type": "town",
+          "stability": 80,
+          "prosperity": 15,
+          "stilled": false,
+          "siting_note": "Held by the line that stayed. Sited by proximity as the point. Nothing here registers what it costs.",
+          "degraded_state": {
+            "stability": 80,
+            "prosperity": 5,
+            "text": "Nothing changes. That was always the arrangement. The difference is that now it is true."
+          }
+        }
+      }
+    }
+  }
+}
