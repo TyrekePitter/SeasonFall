@@ -1,0 +1,104 @@
+{
+  "schema_version": 1,
+  "_note": "Seasonfall authored region content for Frostaris. Read-only at runtime: nothing in this file changes during play. Runtime state (god resolutions, kill counts, stillness progress, current settlement ratings) lives in a save file — see world_state.new_save. Settlement stability/prosperity here are base (start-of-game) values. Settlement names, ratings and degraded states are [PROPOSED] placeholders. Structure follows CF 001 (resolution enum), CF 003 (gods_resolved, eclipse_armed), CF 004 (stillness as adjacency graph, settlement vintage, anchor quality).",
+
+  "id": "frostaris",
+  "display_name": "Frostaris",
+  "season": "winter",
+  "anchor_quality": "heartland",
+  "_anchor_note": "CF 004 rules two heartland, two marginal. Which two is blocked on the underlayer. Placeholder.",
+
+  "god": {
+    "id": "astrael",
+    "anchor_node": "astrael_anchor"
+  },
+
+  "species": [
+    "ice_wolf",
+    "crystal_owlbear",
+    "frost_wraith",
+    "glacial_beetle"
+  ],
+
+  "rating_scale": {
+    "_note": "GB 13.3 defines no ranges anywhere in the corpus. 0-100 int is [PROPOSED] and needs a ruling before authoring spreads.",
+    "min": 0,
+    "max": 100
+  },
+
+  "adjacency": [
+    { "from": "astrael_anchor", "to": "stillhaven", "path": "open plain",          "resistance": 1 },
+    { "from": "stillhaven",     "to": "stonecross", "path": "frozen river course", "resistance": 1 },
+    { "from": "stonecross",     "to": "vaerholt",   "path": "river to sea",        "resistance": 1 },
+    { "from": "stonecross",     "to": "uphearth",   "path": "escarpment climb",    "resistance": 3 },
+    { "from": "vaerholt",       "to": "greyfold",   "path": "coast road",          "resistance": 2 }
+  ],
+
+  "settlements": {
+    "vaerholt": {
+      "display_name": "Vaerholt",
+      "vintage": "pre_shattering",
+      "type": "town",
+      "stability": 70,
+      "prosperity": 55,
+      "siting_note": "Walled deepwater port. The sea has been ice for nine centuries. The harbour cranes still stand.",
+      "degraded_state": {
+        "stability": 25,
+        "prosperity": 10,
+        "text": "The cranes stop mid-swing. Nobody remembers ordering the work halted, and nobody restarts it."
+      }
+    },
+    "stonecross": {
+      "display_name": "Stonecross",
+      "vintage": "pre_shattering",
+      "type": "village",
+      "stability": 60,
+      "prosperity": 40,
+      "siting_note": "Built where the road met the ford. The ford is glass. The road still runs.",
+      "degraded_state": {
+        "stability": 20,
+        "prosperity": 5,
+        "text": "The market keeps its hours. No one has brought anything to sell for two seasons."
+      }
+    },
+    "uphearth": {
+      "display_name": "Uphearth",
+      "vintage": "refuge",
+      "type": "village",
+      "stability": 45,
+      "prosperity": 20,
+      "siting_note": "Founded by the fled. Sited for distance, not soil. Terraced gravel, three months of growing weather.",
+      "degraded_state": {
+        "stability": 15,
+        "prosperity": 5,
+        "text": "They planted anyway. The seed sits in the ground exactly as it was set down."
+      }
+    },
+    "greyfold": {
+      "display_name": "Greyfold",
+      "vintage": "refuge",
+      "type": "outpost",
+      "stability": 50,
+      "prosperity": 25,
+      "siting_note": "Border post at the lucid edge. Mixed population. Two grievances sharing one wall.",
+      "degraded_state": {
+        "stability": 20,
+        "prosperity": 10,
+        "text": "The argument that has run here for four generations stops mid-sentence and is not resumed."
+      }
+    },
+    "stillhaven": {
+      "display_name": "Stillhaven",
+      "vintage": "devotion",
+      "type": "town",
+      "stability": 80,
+      "prosperity": 15,
+      "siting_note": "Held by the line that stayed. Sited by proximity as the point. Nothing here registers what it costs.",
+      "degraded_state": {
+        "stability": 80,
+        "prosperity": 5,
+        "text": "Nothing changes. That was always the arrangement. The difference is that now it is true."
+      }
+    }
+  }
+}
