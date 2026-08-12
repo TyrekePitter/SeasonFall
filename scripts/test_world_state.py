@@ -12,11 +12,14 @@ Every test names the ruling it protects. If a test fails, either the code
 broke or a ruling changed — and if it is the second, the test is what forces
 the change to be deliberate.
 
-Two known defects are recorded at the end as findings rather than failures.
-They are open work, not regressions, and the harness reports them so they
-cannot be quietly forgotten. A third — new_save snapshotting authored
-ratings, CF 005's save-migration thread — was closed by CF 006 Part III's
-delta storage and is now asserted fixed in section 12.
+One known defect is recorded at the end as a finding rather than a failure.
+It is open work, not a regression, and the harness reports it so it cannot
+be quietly forgotten. Two earlier findings have closed: new_save
+snapshotting authored ratings (CF 005's save-migration thread) was closed
+by CF 006 Part III's delta storage and is asserted fixed in section 12;
+the missing restored_state artifact was closed by ruling D21 — restoration
+resolves ratings to base, and no fourth authored rating state exists — and
+is asserted in section 5.
 
 CF 006 Part III note: the storage rulings changed — the save records
 divergence only, ratings resolve on read via settlement_state and
@@ -73,7 +76,7 @@ def ratings(save, settlement_id, region_id="frostaris"):
 
 
 def main() -> int:
-    region = ws.load_region(REGION_PATH)
+    region = REGION  # authored content, loaded once at module level
     print(f"Region: {region['display_name']} "
           f"({len(region['settlements'])} settlements, "
           f"{len(region['adjacency'])} edges)")
@@ -141,10 +144,15 @@ def main() -> int:
         region, ws.resolve_god(region, ws.new_save([region]), "absorbed"), 4)
     check("absorbed produces the same stilled set", stilled(killed) == stilled(absorbed))
     same_ratings = True
+    same_states = True
     for settlement_id in region["settlements"]:
         if ratings(killed, settlement_id) != ratings(absorbed, settlement_id):
             same_ratings = False
+        if (ws.settlement_state(region, killed, settlement_id)
+                != ws.settlement_state(region, absorbed, settlement_id)):
+            same_states = False
     check("absorbed produces the same settlement ratings", same_ratings)
+    check("absorbed produces the same settlement states", same_states)
     check("only the resolution flag differs",
           absorbed["regions"]["frostaris"]["god_resolution"] == "absorbed")
 
@@ -161,6 +169,9 @@ def main() -> int:
           str(stilled(sealed)))
     check("settlement ratings unchanged by restoration",
           ratings(sealed, "vaerholt") == (70, 55))
+    check("a restored settlement resolves to authored base ratings (D21)",
+          ws.settlement_state(region, red, "stillhaven") == "restored"
+          and ratings(red, "stillhaven") == (80, 15))
 
     # ------------------------------------------------------ symmetric block
     section("6. BLOCKING — symmetric (R10b)")
@@ -279,15 +290,6 @@ def main() -> int:
 
     # --------------------------------------------------------------- findings
     section("FINDINGS — open work, not regressions")
-
-    r1 = ws.resolve_god(region, ws.new_save([region]), "redeemed")
-    if ratings(r1, "vaerholt") == ratings(ws.new_save([region]), "vaerholt"):
-        FINDINGS.append(
-            "advance_restoration claims nodes but never changes ratings, so a "
-            "restored settlement renders identically to an untouched one. R10's "
-            "counter-push has no artifact, which P2 forbids. Needs restored_state "
-            "as a fourth authored state alongside base, degraded and entrenched."
-        )
 
     sh = region["settlements"]["stillhaven"]
     if sh["degraded_state"]["stability"] == sh["stability"]:
