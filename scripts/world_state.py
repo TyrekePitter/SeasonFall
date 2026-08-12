@@ -11,11 +11,17 @@ The data lives in two places, split by who writes it:
   base and degraded ratings. It is read-only at runtime. Nothing in this
   module ever writes to it.
 * Save state (``saves/world_<slot>.json``) is runtime state: god
-  resolutions, kill counts, stillness progress, and each settlement's
-  current ratings. Every transition takes the region data and a save
-  state and returns a new save state. World saves live beside the
-  character system's ``saves/<slot>.json`` files but never share a path
-  with them — the two schemas are incompatible.
+  resolutions, kill counts, stillness and restoration progress, and the
+  entrenchment flag. The save records divergence from authored content
+  only (Carry Forward 006 Part III). No rating value is ever stored in a
+  save: a settlement's condition is resolved on read from
+  ``stilled_nodes``, ``restored_nodes`` and ``entrenched`` plus the
+  authored states, by ``settlement_state`` and ``settlement_ratings``.
+  Those two functions are the only code that touches authored rating
+  values. Every transition takes the region data and a save state and
+  returns a new save state. World saves live beside the character
+  system's ``saves/<slot>.json`` files but never share a path with
+  them — the two schemas are incompatible.
 
 Design constraints, deliberate:
 
@@ -67,8 +73,11 @@ RESOLUTION_EFFECTS = {
     },
 }
 
-# Bumped to 2 when restoration and entrenchment state joined the save.
-SAVE_SCHEMA_VERSION = 2
+# Bumped to 3 when settlement ratings left the save entirely (CF 006 Part
+# III: the save records divergence only, and ratings resolve on read). v1
+# snapshots and v2 stored-ratings saves are rejected at load; there is no
+# migration path, because a divergence-only save needs none.
+SAVE_SCHEMA_VERSION = 3
 
 RegionData = Dict[str, Any]
 SaveState = Dict[str, Any]
@@ -125,9 +134,11 @@ def write_save(path: str, save: SaveState) -> None:
 def new_save(regions: List[RegionData]) -> SaveState:
     """Build the start-of-game save state for the given authored regions.
 
-    Current settlement ratings start at their authored base values; kills,
-    resolutions and stillness all start at zero. This is the runtime half
-    of what used to live in data/world_state.json.
+    Kills, resolutions, stillness and restoration all start at zero.
+    Settlement ratings are not stored (CF 006 Part III): with no divergence
+    recorded, every settlement resolves to its authored base state — which
+    is also why a settlement authored after this save exists needs no
+    migration to appear in it.
     """
     save: SaveState = {
         "schema_version": SAVE_SCHEMA_VERSION,
@@ -143,21 +154,12 @@ def new_save(regions: List[RegionData]) -> SaveState:
         for species_id in region["species"]:
             kills[species_id] = 0
 
-        settlements: Dict[str, Any] = {}
-        for settlement_id in region["settlements"]:
-            authored = region["settlements"][settlement_id]
-            settlements[settlement_id] = {
-                "stability": authored["stability"],
-                "prosperity": authored["prosperity"],
-            }
-
         save["regions"][region["id"]] = {
             "god_resolution": "unresolved",
             "species_kills": kills,
             "stillness": {"step": 0, "stilled_nodes": []},
             "restoration": {"step": 0, "restored_nodes": []},
             "entrenched": False,
-            "settlements": settlements,
         }
     return save
 
@@ -234,8 +236,9 @@ def advance_stillness(region: RegionData, save: SaveState, steps: int = 1) -> Sa
     terrain. Each edge costs its ``resistance`` in steps, so a refuge sited
     uphill for distance is reached last — which is what it was sited for.
 
-    A settlement reached by the spread swaps its current ratings to its
-    authored degraded state. It does not receive a filter.
+    A settlement reached by the spread is recorded in ``stilled_nodes``;
+    its ratings resolve to its authored degraded state on read
+    (``settlement_ratings``). It does not receive a filter.
 
     Restored nodes are immune to stillness and block it from travelling
     through them; a restored anchor seals the spread at its source.
@@ -256,13 +259,6 @@ def advance_stillness(region: RegionData, save: SaveState, steps: int = 1) -> Sa
         if node_id in stillness["stilled_nodes"]:
             continue
         stillness["stilled_nodes"].append(node_id)
-        authored = region["settlements"].get(node_id)
-        if authored is None:
-            continue  # the anchor itself, and any non-settlement node
-        degraded = authored["degraded_state"]
-        settlement = region_save["settlements"][node_id]
-        settlement["stability"] = degraded["stability"]
-        settlement["prosperity"] = degraded["prosperity"]
 
     return new_state
 
@@ -303,14 +299,18 @@ def advance_restoration(region: RegionData, save: SaveState, steps: int = 1) -> 
 
 
 def entrench_region(region: RegionData, save: SaveState) -> SaveState:
-    """Apply every settlement's authored entrenched state and return the new save state.
+    """Flag the region entrenched and return the new save state.
 
-    Manipulation's map consequence. Each settlement swaps its current
-    ratings to its authored ``entrenched_state``.
+    Manipulation's map consequence. Once the flag is set, every settlement
+    resolves to its authored ``entrenched_state`` on read
+    (``settlement_ratings``).
 
-    Raises ``UnauthoredContent`` if any settlement lacks an authored
-    ``entrenched_state`` — inventing ratings here would close an authoring
-    decision by accident. The input save is untouched on the raise.
+    Raises ``UnauthoredContent`` up front if any settlement lacks an
+    authored ``entrenched_state`` — the authoring queue prints itself here
+    before the flag is set, and again at resolution time for any settlement
+    authored later without one. Inventing ratings in either place would
+    close an authoring decision by accident. The input save is untouched
+    on the raise.
     """
     region_id = region["id"]
     missing: List[str] = []
@@ -323,15 +323,69 @@ def entrench_region(region: RegionData, save: SaveState) -> SaveState:
         )
 
     new_state = copy.deepcopy(save)
-    region_save = new_state["regions"][region_id]
-    region_save["entrenched"] = True
-    for settlement_id in region["settlements"]:
-        entrenched = region["settlements"][settlement_id]["entrenched_state"]
-        settlement = region_save["settlements"][settlement_id]
-        settlement["stability"] = entrenched["stability"]
-        settlement["prosperity"] = entrenched["prosperity"]
-
+    new_state["regions"][region_id]["entrenched"] = True
     return new_state
+
+
+def settlement_state(region: RegionData, save: SaveState, settlement_id: str) -> str:
+    """Resolve which state a settlement is in from the save's divergence record.
+
+    CF 006 Part III: the save stores no settlement ratings, so a
+    settlement's condition is a function of ``stilled_nodes``,
+    ``restored_nodes`` and ``entrenched``. Returns one of ``"base"``,
+    ``"stilled"``, ``"restored"`` or ``"entrenched"``. Stillness and
+    restoration block each other symmetrically, so a node is never in
+    both lists; entrenchment is region-wide and yields to either spread
+    claim, matching the render marks in ``describe_region``.
+    """
+    region_id = region["id"]
+    if settlement_id not in region["settlements"]:
+        raise KeyError(f"{settlement_id} is not an authored settlement in {region_id}")
+    region_save = save["regions"][region_id]
+    if settlement_id in region_save["stillness"]["stilled_nodes"]:
+        return "stilled"
+    if settlement_id in region_save["restoration"]["restored_nodes"]:
+        return "restored"
+    if region_save["entrenched"]:
+        return "entrenched"
+    return "base"
+
+
+def settlement_ratings(region: RegionData, save: SaveState, settlement_id: str) -> Dict[str, int]:
+    """Resolve a settlement's current ratings from its state and authored content.
+
+    With ``settlement_state``, this is the only code that reads authored
+    rating values. A settlement authored after a save exists carries no
+    divergence record, so it resolves as base with no migration.
+
+    Raises ``UnauthoredContent`` if the settlement is in a state whose
+    authored content does not exist — rendering an invented rating would
+    close an authoring decision by accident, and the raise is what makes
+    the authoring queue print itself.
+    """
+    state = settlement_state(region, save, settlement_id)
+    authored = region["settlements"][settlement_id]
+
+    if state == "stilled":
+        if "degraded_state" not in authored:
+            raise UnauthoredContent(
+                f"{region['id']}: degraded_state is not authored for: {settlement_id}"
+            )
+        degraded = authored["degraded_state"]
+        return {"stability": degraded["stability"], "prosperity": degraded["prosperity"]}
+
+    if state == "entrenched":
+        if "entrenched_state" not in authored:
+            raise UnauthoredContent(
+                f"{region['id']}: entrenched_state is not authored for: {settlement_id}"
+            )
+        entrenched = authored["entrenched_state"]
+        return {"stability": entrenched["stability"], "prosperity": entrenched["prosperity"]}
+
+    # base and restored both resolve to the authored base ratings.
+    # Restoration protects; it does not repair (R10). A distinct
+    # restored_state is an open authoring thread the harness records.
+    return {"stability": authored["stability"], "prosperity": authored["prosperity"]}
 
 
 def _nodes_within(edges: List[Dict[str, Any]], origin: str, budget: int, blocked: List[str]) -> List[str]:
@@ -369,27 +423,29 @@ def _nodes_within(edges: List[Dict[str, Any]], origin: str, budget: int, blocked
 
 
 def describe_region(region: RegionData, save: SaveState) -> str:
-    """Human-readable snapshot. Debug rendering only — kept out of the logic."""
+    """Human-readable snapshot. Debug rendering only — kept out of the logic.
+
+    Ratings come from ``settlement_ratings``, so a settlement in an
+    unauthored state raises here rather than rendering. That is intended:
+    the authoring queue prints itself instead of an invented number.
+    """
     region_save = save["regions"][region["id"]]
-    stilled_nodes = region_save["stillness"]["stilled_nodes"]
-    restored_nodes = region_save["restoration"]["restored_nodes"]
     lines = [
         f"{region['display_name']} — god {region_save['god_resolution']}, "
         f"stillness step {region_save['stillness']['step']}"
     ]
+    marks = {
+        "stilled": "STILLED",
+        "restored": "RESTORED",
+        "entrenched": "ENTRENCHED",
+        "base": "      ",
+    }
     for settlement_id in region["settlements"]:
         authored = region["settlements"][settlement_id]
-        current = region_save["settlements"][settlement_id]
-        if settlement_id in stilled_nodes:
-            mark = "STILLED"
-        elif settlement_id in restored_nodes:
-            mark = "RESTORED"
-        elif region_save["entrenched"]:
-            mark = "ENTRENCHED"
-        else:
-            mark = "      "
+        state = settlement_state(region, save, settlement_id)
+        current = settlement_ratings(region, save, settlement_id)
         lines.append(
-            f"  {mark} {authored['display_name']:<12} "
+            f"  {marks[state]} {authored['display_name']:<12} "
             f"({authored['vintage']:<14}) "
             f"stab {current['stability']:>3}  prosp {current['prosperity']:>3}"
         )

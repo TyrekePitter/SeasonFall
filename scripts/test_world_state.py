@@ -12,9 +12,17 @@ Every test names the ruling it protects. If a test fails, either the code
 broke or a ruling changed — and if it is the second, the test is what forces
 the change to be deliberate.
 
-Three known defects are recorded at the end as findings rather than failures.
+Two known defects are recorded at the end as findings rather than failures.
 They are open work, not regressions, and the harness reports them so they
-cannot be quietly forgotten.
+cannot be quietly forgotten. A third — new_save snapshotting authored
+ratings, CF 005's save-migration thread — was closed by CF 006 Part III's
+delta storage and is now asserted fixed in section 12.
+
+CF 006 Part III note: the storage rulings changed — the save records
+divergence only, ratings resolve on read via settlement_state and
+settlement_ratings, and the schema moved to v3. The checks below that read
+ratings out of the save or named schema v2 were re-expressed against the
+new storage with their labels, expected values and rulings unchanged.
 """
 
 from __future__ import annotations
@@ -28,6 +36,9 @@ import world_state as ws  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 REGION_PATH = REPO_ROOT / "data" / "regions" / "frostaris.json"
+
+# Authored content for the ratings helper. Read-only, like everywhere else.
+REGION = ws.load_region(str(REGION_PATH))
 
 PASSED = 0
 FINDINGS = []
@@ -55,7 +66,9 @@ def restored(save, region_id="frostaris"):
 
 
 def ratings(save, settlement_id, region_id="frostaris"):
-    s = save["regions"][region_id]["settlements"][settlement_id]
+    # CF 006 Part III: ratings are no longer stored in the save; they
+    # resolve on read from the divergence record plus authored content.
+    s = ws.settlement_ratings(REGION, save, settlement_id)
     return (s["stability"], s["prosperity"])
 
 
@@ -68,12 +81,14 @@ def main() -> int:
     # ------------------------------------------------------------------ setup
     section("1. new_save — start of game")
     base = ws.new_save([region])
-    check("schema version is 2", base["schema_version"] == ws.SAVE_SCHEMA_VERSION)
+    check("schema version is 3", base["schema_version"] == ws.SAVE_SCHEMA_VERSION)
     check("god starts unresolved",
           base["regions"]["frostaris"]["god_resolution"] == "unresolved")
     check("nothing stilled at start", stilled(base) == [])
     check("eclipse not armed", base["global"]["eclipse_armed"] is False)
     check("Vaerholt starts at authored base", ratings(base, "vaerholt") == (70, 55))
+    check("save stores no settlement ratings — divergence only (CF 006 III)",
+          "settlements" not in base["regions"]["frostaris"])
 
     # ---------------------------------------------------------------- purity
     section("2. Purity — transitions never mutate their input")
@@ -86,6 +101,9 @@ def main() -> int:
           repr(before) == snapshot)
     _ = ws.record_kill(region, before, "ice_wolf", 5)
     check("record_kill leaves the input save untouched", repr(before) == snapshot)
+    _ = ws.settlement_ratings(region, before, "vaerholt")
+    check("settlement_ratings leaves the input save untouched",
+          repr(before) == snapshot)
 
     # ----------------------------------------------------- weighted spread
     section("3. KILLED — weighted spread order (D13, CF 004)")
@@ -122,9 +140,11 @@ def main() -> int:
     absorbed = ws.advance_stillness(
         region, ws.resolve_god(region, ws.new_save([region]), "absorbed"), 4)
     check("absorbed produces the same stilled set", stilled(killed) == stilled(absorbed))
-    check("absorbed produces the same settlement ratings",
-          killed["regions"]["frostaris"]["settlements"]
-          == absorbed["regions"]["frostaris"]["settlements"])
+    same_ratings = True
+    for settlement_id in region["settlements"]:
+        if ratings(killed, settlement_id) != ratings(absorbed, settlement_id):
+            same_ratings = False
+    check("absorbed produces the same settlement ratings", same_ratings)
     check("only the resolution flag differs",
           absorbed["regions"]["frostaris"]["god_resolution"] == "absorbed")
 
@@ -216,13 +236,23 @@ def main() -> int:
     except ValueError:
         old_rejected = True
     check("older save schema is rejected, not migrated", old_rejected)
+    stale_v2 = ws.new_save([region])
+    stale_v2["schema_version"] = 2
+    ws.write_save(str(tmp), stale_v2)
+    v2_rejected = False
+    try:
+        ws.load_save(str(tmp))
+    except ValueError:
+        v2_rejected = True
+    check("v2 stored-ratings schema is rejected, not migrated (CF 006 III)",
+          v2_rejected)
     ws.write_save(str(tmp), ws.new_save([region]))
     check("current save schema round-trips",
-          ws.load_save(str(tmp))["schema_version"] == 2)
+          ws.load_save(str(tmp))["schema_version"] == 3)
     tmp.unlink()
 
-    # --------------------------------------------------------------- findings
-    section("FINDINGS — open work, not regressions")
+    # ----------------------------------------------------- delta storage
+    section("12. DELTA STORAGE — resolution from divergence (CF 006 III)")
 
     grown = ws.load_region(REGION_PATH)
     grown["settlements"]["newholt"] = {
@@ -230,14 +260,25 @@ def main() -> int:
         "stability": 30, "prosperity": 10, "siting_note": "added after the save",
         "degraded_state": {"stability": 5, "prosperity": 0, "text": "-"},
     }
-    old_save = ws.new_save([region])
-    if "newholt" not in old_save["regions"]["frostaris"]["settlements"]:
-        FINDINGS.append(
-            "new_save snapshots authored ratings. A settlement added to a region "
-            "after a save exists never appears in that save. This is CF 005's "
-            "save-migration thread, and it is a storage choice rather than a "
-            "policy question - storing divergence closes it without a ruling."
-        )
+    old_save = ws.new_save([region])  # written before Newholt was authored
+    check("a settlement authored after the save resolves as base — no migration",
+          ws.settlement_state(grown, old_save, "newholt") == "base")
+    newholt = ws.settlement_ratings(grown, old_save, "newholt")
+    check("its ratings are the authored base values",
+          (newholt["stability"], newholt["prosperity"]) == (30, 10))
+
+    forced = ws.new_save([region])
+    forced["regions"]["frostaris"]["entrenched"] = True
+    unauthored_raised = False
+    try:
+        ws.settlement_ratings(region, forced, "vaerholt")
+    except ws.UnauthoredContent:
+        unauthored_raised = True
+    check("an unauthored state raises at resolution rather than rendering",
+          unauthored_raised)
+
+    # --------------------------------------------------------------- findings
+    section("FINDINGS — open work, not regressions")
 
     r1 = ws.resolve_god(region, ws.new_save([region]), "redeemed")
     if ratings(r1, "vaerholt") == ratings(ws.new_save([region]), "vaerholt"):
